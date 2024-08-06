@@ -1,5 +1,4 @@
 import requests
-from aiogram import types
 
 from config import HOST
 
@@ -54,10 +53,21 @@ def change_payment_fc(designer_id: int, new_payment: str) -> str:
 
     res = requests.post(F'{HOST}/users/change_payment', params=params)
     data = res.json()
-    return data['status']
+    return data
+
+
+def add_work_fc(desinger_id: int, customer: str, headline: str, value: int) -> str:
+    json = {
+        "customer": customer,
+        "headline": headline,
+        "value": value,
+        "designer_id": desinger_id
+    }
+
+    res = requests.post(f'{HOST}/works/add_work', json=json)
+    data = res.json()
+    return data
 
 
 if __name__ == '__main__':
-    print(change_payment_fc(12, 'hello'))
-
-
+    print(add_work_fc(12, 'lox', 'asdfasdf', 1234))
