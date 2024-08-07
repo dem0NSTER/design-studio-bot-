@@ -69,5 +69,20 @@ def add_work_fc(desinger_id: int, customer: str, headline: str, value: int) -> s
     return data
 
 
+def add_designer_fc(id: int, name: str, admin_id: int) -> str:
+    params = {
+        "admin_id": admin_id
+    }
+    json = {
+        "id": id,
+        "name": name,
+        "payment": ''
+    }
+
+    res = requests.post(f'{HOST}/users/add_designer', json=json, params=params)
+    data = res.json()
+    return data
+
+
 if __name__ == '__main__':
-    print(add_work_fc(12, 'lox', 'asdfasdf', 1234))
+    print(add_designer_fc(11234123, 'test', 1284799474))
