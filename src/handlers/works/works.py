@@ -1,12 +1,14 @@
-from aiogram import types
-from aiogram.dispatcher import FSMContext
+from aiogram import types, F, Router
+from aiogram.fsm.context import FSMContext
 
 from create_bot import bot
 from handlers.works.state_models import AddWork
 from utils import get_users, add_work_fc
 from keyboards import main_keyboard_for_designers
 
+router = Router()
 
+@router.message(F.text == 'Показать неоплаченные работы')
 async def check_works(message: types.Message):
     users = get_users()
     if message.from_user.id in users['admins']:
@@ -15,32 +17,35 @@ async def check_works(message: types.Message):
         await bot.send_message(message.chat.id, 'Вы не админ')
 
 
-async def create_work(message: types.Message):
+@router.message(F.text == 'Добавить работу')
+async def create_work(message: types.Message, state: FSMContext):
     users = get_users()
     if message.from_user.id in users['designers']:
-        await bot.send_message(message.chat.id, 'Напишите заказчика (канал)')
-        await AddWork.customer.set()
+        await bot.send_message(message.chat.id, 'Напишите заказчика (канал)', reply_markup=types.ReplyKeyboardRemove())
+        await state.set_state(AddWork.customer)
     else:
         await bot.send_message(message.chat.id, 'Вы не дизайнер')
 
 
-async def create_work_state_2(message: types.Message, state: FSMContext):
-    async with state.proxy() as data:
-        data['customer'] = message.text
+@router.message(AddWork.customer)
+async def create_work_state_customer(message: types.Message, state: FSMContext):
+    await state.update_data(customer=message.text)
     await bot.send_message(message.chat.id, 'Напишите название работы')
-    await AddWork.headline.set()
+    await state.set_state(AddWork.headline)
 
 
-async def create_work_state_3(message: types.Message, state: FSMContext):
-    async with state.proxy() as data:
-        data['headline'] = message.text
+@router.message(AddWork.headline)
+async def create_work_state_headline(message: types.Message, state: FSMContext):
+    await state.update_data(headline=message.text)
     await bot.send_message(message.chat.id, 'Напишите стоимость работы')
-    await AddWork.value.set()
+    await state.set_state(AddWork.value)
 
 
-async def create_work_state_4(message: types.Message, state: FSMContext):
-    async with state.proxy() as data:
-        data['value'] = message.text
+@router.message(AddWork.value)
+async def create_work_state_value(message: types.Message, state: FSMContext):
+    await state.update_data(value=message.text)
+    data = await state.get_data()
+    await state.clear()
 
     response = add_work_fc(
         desinger_id=message.from_user.id,
@@ -53,12 +58,3 @@ async def create_work_state_4(message: types.Message, state: FSMContext):
         await bot.send_message(message.chat.id, 'Работа добавлена', reply_markup=main_keyboard_for_designers())
     else:
         await bot.send_message(message.chat.id, 'Произошла ошибка', reply_markup=main_keyboard_for_designers())
-    await state.finish()
-
-
-def register_handlers_works(dp):
-    dp.register_message_handler(check_works, lambda message: message.text == 'Показать неоплаченные работы')
-    dp.register_message_handler(create_work, lambda message: message.text == 'Добавить работу')
-    dp.register_message_handler(create_work_state_2, state=AddWork.customer)
-    dp.register_message_handler(create_work_state_3, state=AddWork.headline)
-    dp.register_message_handler(create_work_state_4, state=AddWork.value)

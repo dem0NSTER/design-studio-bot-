@@ -1,50 +1,65 @@
-from aiogram.dispatcher import FSMContext
+from aiogram import types, Router, F
+from aiogram.fsm.context import FSMContext
 
 from create_bot import bot
-from aiogram import types
-
-from utils import get_users, add_designer_fc
 from handlers.users.state_models import AddDesigner
+from keyboards import main_keyboard_for_admins, main_keyboard_for_main_admins
+from utils import get_users, get_designers, add_designer_fc
+
+router = Router()
 
 
-async def add_designer(message: types.Message):
+@router.message(F.text == 'Добавить дизайнера')
+async def add_designer(message: types.Message, state: FSMContext):
     users = get_users()
     if message.from_user.id in users['admins']:
-        await bot.send_message(message.chat.id, 'Отправте id нового дизайнера. Он должен был его скинуть вам')
-        await AddDesigner.id.set()
+        await bot.send_message(message.chat.id, 'Отправте id нового дизайнера. Он должен был его скинуть вам',
+                               reply_markup=types.ReplyKeyboardRemove())
+        await state.set_state(AddDesigner.id)
     else:
         await bot.send_message(message.chat.id, 'Вы не админ')
 
 
-async def add_designer_state_2(message: types.Message, state: FSMContext):
-    async with state.proxy() as data:
-        data['id'] = message.text
+@router.message(AddDesigner.id)
+async def add_designer_state_id(message: types.Message, state: FSMContext):
+    await state.update_data(id=message.text)
     await bot.send_message(message.chat.id, 'Напишите имя дизайнера')
-    await AddDesigner.name.set()
+    await state.set_state(AddDesigner.name)
 
 
-async def add_designer_state_3(message: types.Message, state: FSMContext):
-    async with state.proxy() as data:
-        data['name'] = message.text
+@router.message(AddDesigner.name)
+async def add_designer_state_name(message: types.Message, state: FSMContext):
+    await state.update_data(name=message.text)
+    data = await state.get_data()
+    await state.clear()
+    response = add_designer_fc(id=data['id'], name=data['name'], admin_id=message.from_user.id)
 
-    response = add_designer_fc(data['id'], data['name'], message.from_user.id)
-    if response['status'] == 'success':
-        await bot.send_message(message.chat.id, 'Дизайнер добавлен')
+    users = get_users()
+
+    if message.from_user.id in users['main_admins']:
+        if response['status'] == 'success':
+            await bot.send_message(message.chat.id, 'Дизайнер добавлен', reply_markup=main_keyboard_for_main_admins())
+        else:
+            await bot.send_message(message.chat.id, 'Произошла ошибка', reply_markup=main_keyboard_for_main_admins())
     else:
-        await bot.send_message(message.chat.id, 'Произошла ошибка')
-    await state.finish()
+        if response['status'] == 'success':
+            await bot.send_message(message.chat.id, 'Дизайнер добавлен', reply_markup=main_keyboard_for_admins())
+        else:
+            await bot.send_message(message.chat.id, 'Произошла ошибка', reply_markup=main_keyboard_for_admins())
 
 
+@router.message(F.text == 'Удалить дизайнера')
 async def delete_designer(message: types.Message):
     users = get_users()
     if message.from_user.id in users['admins']:
-        await bot.send_message(message.chat.id, 'В разработке: 1')
+        response = get_designers()
+
+        if response['status'] != 'success':
+            await bot.send_message(message.chat.id, 'Произошла ошибка')
+        else:
+            designers = response['data']
+            for designer in designers:
+                await bot.send_message(message.chat.id, f'{designer["name"]}\n{designer["id"]}')
+
     else:
         await bot.send_message(message.chat.id, 'Вы не админ')
-
-
-def register_handlers_designers(dp):
-    dp.register_message_handler(add_designer, lambda message: message.text == 'Добавить дизайнера')
-    dp.register_message_handler(delete_designer, lambda message: message.text == 'Удалить дизайнера')
-    dp.register_message_handler(add_designer_state_2, state=AddDesigner.id)
-    dp.register_message_handler(add_designer_state_3, state=AddDesigner.name)

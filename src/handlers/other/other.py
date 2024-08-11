@@ -1,24 +1,30 @@
-from aiogram import types
-from aiogram.dispatcher import FSMContext
+from aiogram import types, F, Router
+from aiogram.fsm.context import FSMContext
 
 from create_bot import bot
 from handlers.other.state_models import ChangePayment
 from keyboards import main_keyboard_for_designers
 from utils import get_users, change_payment_fc
 
+router = Router()
 
-async def change_payment(message: types.Message):
+
+@router.message(F.text == 'Изменить способ оплаты')
+async def change_payment(message: types.Message, state: FSMContext):
     users = get_users()
     if message.from_user.id in users['designers']:
-        await bot.send_message(message.chat.id, 'отправьте новый способ оплаты')
-        await ChangePayment.payment.set()
+        await bot.send_message(message.chat.id, 'отправьте новый способ оплаты',
+                               reply_markup=types.ReplyKeyboardRemove())
+        await state.set_state(ChangePayment.payment)
     else:
         await bot.send_message(message.chat.id, 'Вы не дизайнер')
 
 
-async def change_payment_state_2(message: types.Message, state: FSMContext):
-    async with state.proxy() as data:
-        data['payment'] = message.text
+@router.message(ChangePayment.payment)
+async def change_payment_state_payment(message: types.Message, state: FSMContext):
+    await state.update_data(payment=message.text)
+    data = await state.get_data()
+    await state.clear()
 
     response = change_payment_fc(message.from_user.id, data['payment'])
 
@@ -26,10 +32,3 @@ async def change_payment_state_2(message: types.Message, state: FSMContext):
         await bot.send_message(message.chat.id, 'Способ оплаты изменен', reply_markup=main_keyboard_for_designers())
     else:
         await bot.send_message(message.chat.id, 'Произошла ошибка', reply_markup=main_keyboard_for_designers())
-
-    await state.finish()
-
-
-def register_handlers_other(dp):
-    dp.register_message_handler(change_payment, lambda message: message.text == 'Изменить способ оплаты')
-    dp.register_message_handler(change_payment_state_2, state=ChangePayment.payment)

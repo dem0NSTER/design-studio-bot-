@@ -3,6 +3,16 @@ import requests
 from config import HOST
 
 
+def get_admins() -> dict:
+    res = requests.get(F'{HOST}/users/select_all_admins')
+    return res.json()
+
+
+def get_designers() -> dict:
+    res = requests.get(F'{HOST}/users/select_all_designers')
+    return res.json()
+
+
 def get_users() -> dict:
     res = requests.get(F'{HOST}/users/select_all_users')
     # print(res.text)
@@ -84,5 +94,20 @@ def add_designer_fc(id: int, name: str, admin_id: int) -> str:
     return data
 
 
+def add_admin_fc(id: int, name: str, id_main_admin: int) -> str:
+    params = {
+        "id_main_admin": id_main_admin
+    }
+    json = {
+        "id": id,
+        "name": name,
+        "is_main_admin": False
+    }
+
+    res = requests.post(f'{HOST}/users/add_admin', json=json, params=params)
+    data = res.json()
+    return data
+
+
 if __name__ == '__main__':
-    print(add_designer_fc(11234123, 'test', 1284799474))
+    print(add_admin_fc(123, '123', 1284799474))
